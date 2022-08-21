@@ -33,6 +33,8 @@ class clearing:
     def set(self, state):
         self.currentState = state
 
+# Реализация методов turn, move сокрыта в классе movement, 
+# Реализации методов мыться сокрыт в классе clearing
 class robot:
     def __init__(self):
         self.robotClearing = clearing()
@@ -59,16 +61,3 @@ class robot:
     def stop(self):
         self.robotClearing.stop()
         print("Robot has stoped washing with " + self.robotClearing.currentState)
-
- 
-r = robot()
-inp = "";
-while(inp != "exit"):
-    inp = input("> ")
-    if inp == "stop":
-        r.stop()
-    elif inp == "start":
-        r.start()
-    #...etc
-    else:
-        print("unknown command")
