@@ -1,3 +1,5 @@
+
+```cpp
 void GraphBuilderDCPanel::DrawGraphLine(Graph* graph)
 {
     wxClientDC dc(this);
@@ -441,3 +443,4 @@ void GraphBuilderDCPanel::DrawGraphColumn(Graph* graph)
 
         delete[] pointArray;
 }
+```
