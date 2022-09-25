@@ -386,7 +386,10 @@ void GraphBuilderDCPanel::Paint(GraphToDraw* graph)
 По итогу, я ощутил "стоимость" поддержки существующей отвратительной архитектуры.
 
 ---------------------------2------------
-Следующий пример более удачный:
+Следующий пример более удачный.
+Дизайн логики следующий: создана структура данных "реляционная таблица", не хранящая дубликаты "строк". Реляционная таблица имеет схему, которой
+должна соответствовать строка, итератор, а также методы имитирующие работы реляционной таблицы (поиск, удаление,вставка).
+
 
 ```php
 class Relation
@@ -403,7 +406,7 @@ class Relation
 
     private string $title;
 
-    private array $rows;
+    private array $rows; //class rows
     private array $primary_key;
     private array $unique_key;
     private array $schema;
@@ -411,9 +414,6 @@ class Relation
     private int $insert_status;
     private int $search_status;
 
-
-    //Пред-условия: Передано название отношения
-    //Пост-условия:
     public function __construct(string $title, array $schema)
     {
         $this->rows = array();
@@ -428,13 +428,7 @@ class Relation
 
     }
 
-    public function iterator(): RelationIterator
-    {
-        return $this->createIterator();
-    }
 
-    //Пред-условия: Передан объект типа $row
-    //Пост-условия:
 
     public function search(int $index, string $needle)
     {
@@ -447,9 +441,6 @@ class Relation
         $this->search_status = Relation::SEARCH_STATUS_NOTFOUND;
         return -1;
     }
-
-    //Пред-условия:
-    //Пост-условия:
 
     public function search_pk(array $fk_columns): int
     {
@@ -468,41 +459,6 @@ class Relation
         return -1;
     }
 
-    //Пред-условия:
-    //Пост-условия:
-
-    public function get_insert_status(): int
-    {
-        return $this->insert_status;
-    }
-
-    //Пред-условия:
-    //Пост-условия: возвращает код insert метода
-
-    public function get_search_status(): int
-    {
-        return $this->search_status;
-    }
-
-
-
-    //Пред-условия:
-    //Пост-условия:
-
-    public function get_primary_key(): array
-    {
-        return $this->primary_key;
-    }
-
-    public function set_primary_key(array $primary_key)
-    {
-        $this->primary_key = $primary_key;
-    }
-
-    public function set_unique_key(array $unique_key)
-    {
-        $this->unique_key = $unique_key;
-    }
 
     public function union(Relation $anotherRelation)
     {
@@ -528,7 +484,6 @@ class Relation
             if($row->at($at)->getValue() == $byValue)
                 unset($this->rows[$id]);
         }
-
     }
 
     public function size(): int
@@ -536,9 +491,6 @@ class Relation
         return count($this->rows);
     }
 
-    /**
-     * @throws InvalidRowSchemaCountException
-     */
     public function insert(Row $row)
     {
         if (count($this->schema) != $row->size() ||
@@ -606,6 +558,11 @@ class Relation
             throw new InvalidRowSchemaException("Схема строки не совпадает со схемой отношения!");
     }
 
+    public function iterator(): RelationIterator
+    {
+        return $this->createIterator();
+    }
+    
     private function createIterator(): RelationIterator
     {
         return new class($this->rows) implements RelationIterator
@@ -642,8 +599,235 @@ class Relation
                 return -1;
             }
         };
+	
+	
+    public function get_insert_status(): int
+    {
+        return $this->insert_status;
+    }
+    
+    public function get_search_status(): int
+    {
+        return $this->search_status;
+    }
+
+    public function get_primary_key(): array
+    {
+        return $this->primary_key;
+    }
+
+    public function set_primary_key(array $primary_key)
+    {
+        $this->primary_key = $primary_key;
+    }
+
+    public function set_unique_key(array $unique_key)
+    {
+        $this->unique_key = $unique_key;
+    }
     }
 
 }
 
 ```
+
+Данный пример соответствует, по моему мнению строго определенному дизайну структуры данных таблицы. Ниже будет приведен еще один код, который писал не я, но далее, 
+я объясню в выводе, что к чему.
+
+----3------
+
+Следующий пример кода, который взят у одногруппника.
+```csharp
+ public class Player
+    {
+        public Field[,] memory = new Field[4, 4]; // память агента
+        
+        public int score;
+        public bool canShoot = true;
+        public int posx, posy;
+        public bool isLive = true;
+        public bool isWIn = false;
+
+        public bool GetLive() { return isLive; }
+
+        public Player()
+        {
+            for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) memory[i, j] = new Field(i, j);
+            posx = 0;
+            posy = 0;
+        }
+
+        public void UpdateField(Field field, int x, int y)
+        {
+           ...
+        }
+
+        public void CheckField(int x, int y)
+        {
+           ...
+        }
+
+        public void markHole(int x, int y)
+        {
+           ...
+        }
+
+        public void markWampus(int x, int y)
+        {
+            ...
+        }
+
+        public bool Shoot()
+        {
+            ...
+        }
+
+        public int[] Step()
+        { 
+            for (int i = 0; i < 4; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    if(memory[i,j].isChecked && !memory[i, j].isVisited && !mayDanger(i,j))
+                        return new int[]{ i, j };
+                }
+            }
+            //if we reached here, we have some problems
+            for (int i = 0; i < 4; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    if (memory[i, j].isChecked && !memory[i, j].isVisited && !isDanger(i, j))
+                        return new int[] { i, j };
+                }
+            }
+	    
+            for (int i = 0; i < 4; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    if (memory[i, j].isChecked && !memory[i, j].isVisited)
+                        return new int[] { i, j };
+                }
+            }
+            return new int[0]; 
+        }
+    }
+
+    public class Field
+    {
+        public bool isChecked = false;
+        ...
+       
+        public override string ToString()
+        {
+     		...
+        }
+    }
+
+    public class World
+    {
+        public Field[,] ground = new Field[4, 4];
+        public Player agent = new Player();
+
+        public void GenerateMap()
+        {
+            Random rand = new Random();
+
+            for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) ground[i, j] = new Field(i, j);
+
+            int goldX = rand.Next(0, 3);
+            int goldy;
+            do
+            {
+               goldy = rand.Next(0, 3);
+
+            } while (goldy == goldX && goldX == 0);
+            ground[goldX, goldy].isGoldHere = true;
+
+            goldX = rand.Next(0, 3);
+            do
+            {
+                goldy = rand.Next(0, 3);
+
+            } while (goldy == goldX && goldX == 0);
+            ground[goldX, goldy].isWampus = true;
+            GenerateSmell(goldX, goldy);
+
+            for (int i = 1; i < 4; i++)
+                for (int j = 1; j < 4; j++)
+                {
+                    int luck = rand.Next(0, 10);
+                    if(luck < 2)
+                    {
+                        ground[i, j].isHole = true;
+                        GenerateWind(i, j);
+                    }
+                }
+
+            agent = new Player();
+            ground[0, 0].isPlayerHere = true;
+            ground[0, 0].isVisited = true;
+            agent.posx = 0;
+            agent.posy = 0;
+            agent.UpdateField(ground[agent.posx, agent.posy], agent.posx, agent.posy);
+        }
+
+        public void GenerateSmell(int x, int y)
+        {
+           ...
+        }
+
+        public void GenerateWind(int x, int y)
+        {
+            ...
+        }
+
+
+        public void AgentStep()
+        {
+            bool isPlayerShooted = !agent.canShoot; 
+            agent.CheckField(agent.posx, agent.posy);
+            if (agent.Shoot())
+            {
+                foreach (Field field in ground)
+                {
+                    field.isWampus = false;
+                }
+            }
+            int[] pos = agent.Step();
+            ground[agent.posx, agent.posy].isPlayerHere = false;
+
+            agent.posx = pos[0];
+            agent.posy = pos[1];
+
+            ground[agent.posx, agent.posy].isPlayerHere = true;
+            ground[agent.posx, agent.posy].isVisited = true;
+            agent.UpdateField(ground[agent.posx, agent.posy], agent.posx, agent.posy);
+        }
+    }
+```
+Например, рассмотрев метод Step() класса Player, можно задастаться вопросами "почему мы возвращаем new int[0]?" Будет ли одно из условий обязательно возвращено из 4-х циклов for? 
+
+------ИТОГИ------
+
+На данном занятии я взял 3 участка кода из разных проектов.
+Первый -- студенческий проект. Второй -- послестуденческий. Третий -- одногруппника. Отрефакторить получилось только студенческий, так как второй проект следовал дизайну 1:1, а по коду третьего проекта не все моменты ясно по поводу дизайна (например метод Step()). 
+
+При этом, за период изучения такого понятия, как "Код соответствует только одному дизайну", я пришел к следующим выводам:
+1. Одна из главных проблем, с которой столкнулся заключалась в том, что я в своих проектах был знаком со спецификациями и "обманывал себя", что код якобы соответствует дизайну, и ничего править не надо. (Ситуация, когда для профессора все очевидно, а для студента -- нет). Притом, посмотрев несколько других примеров кода, не всегда ясно "Что именно делает тот или иной код". Пересмотрев "с другого ракурса" на свой код, я обнаружил многие варинты возможного дизайна.
+2. По поводу дизайна. Я путаюсь в моменте "что значит разный дизайн? Какова единица измерения разности дизайна?". По моему мнению дизайн различается по семантическим действиям какой-либо сущности. Например, как в первом примере, может быть множество типов графиков, но семантически они отражают одно и тоже. Но так же есть сущность "ось координат", и несмотря на то, что она также "отрисовывает себя", семантически она совершенно другая. То есть не надо мешать отрисовку "оси координат" и "графиков".
+
+Попрактиковавшись на курсах "три уровня размышлений о программе" могу сказать следующее:
+1. Код должен следовать только единому дизайну.
+2. Создаваемые сущности должны следовать единому дизайну.
+3. Разность дизайна определяется семантически.
+4. Чтобы правильно понимать "замысел кода", именуем соотвествующе переменные, константы, статусы команд. (решаем проблему, чему равна следующая инструкция return a > 65, придаем семантику коду).
+5. Чем проще написан код, тем яснее замысел программиста (избавляемся от ifelse, использем полиморфизм, словари). Держать в голове, вложенные условия if довольно сложно.
+6. Формально определяем, что должна делать та или иная сущность (для этого есть TDD, FizzBuzz). Причем, что тесты, что код должны следовать только дизайне, не друг другу. Так мы подтверждаем, что код следует спецификациям.
+7. Для чистых функций используем декларативный стиль. (Меньше мутабельных значений, проще тестировать, меньше сложность кода).
+
+
+Исходя из того, что переменные имеют семантичкекий замысел, сущности формально определены, можно определенно сказать, что делает тот или иной код, назвать его дизайн.
+И вот комбинация этих действий должна по своей сути приводить к ясной архитектуре.
+
