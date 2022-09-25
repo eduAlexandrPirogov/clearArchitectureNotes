@@ -385,3 +385,265 @@ void GraphBuilderDCPanel::Paint(GraphToDraw* graph)
 На переработку этого кода, чтобы он соответствовал дизайну ушло около 3 дней. Основная проблема заключалась в сильной зависимости от других классов, большого количества жестко закодированных значений, большое количество полей класса, костылей и прочего. Честно говоря, старый код мне так и не удалось преобразовать к рабочему виду, (например, при изменении модуля графиков, потребовалось менять модули, которые эти графики создают, затем модули, которые зависимы от модулей, которые создают графики и так далее, то есть у меня вышло все очень неавтономно). Плюс математические функции, которые потребовались для отрисовки были размазаны не только по классу, но и по плохо спроектированному модулю. 
 По итогу, я ощутил "стоимость" поддержки существующей отвратительной архитектуры.
 
+---------------------------2------------
+Следующий пример более удачный:
+
+```php
+class Relation
+{
+
+    public const INSERT_STATUS_NIL = -1;
+    public const INSERT_STATUS_OK = 0;
+    public const INSERT_STATUS_ERR = 1;
+    public const INSERT_STATUS_DUPLICATE = 2;
+
+    public const SEARCH_STATUS_NIL = -1;
+    public const SEARCH_STATUS_OK = 0;
+    public const SEARCH_STATUS_NOTFOUND = 1;
+
+    private string $title;
+
+    private array $rows;
+    private array $primary_key;
+    private array $unique_key;
+    private array $schema;
+
+    private int $insert_status;
+    private int $search_status;
+
+
+    //Пред-условия: Передано название отношения
+    //Пост-условия:
+    public function __construct(string $title, array $schema)
+    {
+        $this->rows = array();
+        $this->primary_key = array();
+        $this->unique_key = array();
+
+        $this->title = $title;
+        $this->schema = $schema;
+
+        $this->search_status = Relation::INSERT_STATUS_NIL;
+        $this->insert_status = Relation::INSERT_STATUS_NIL;
+
+    }
+
+    public function iterator(): RelationIterator
+    {
+        return $this->createIterator();
+    }
+
+    //Пред-условия: Передан объект типа $row
+    //Пост-условия:
+
+    public function search(int $index, string $needle)
+    {
+        foreach ($this->rows as $row) {
+            if ($row->contains_by_index($index, $needle)) {
+                $this->search_status = Relation::SEARCH_STATUS_OK;
+                return $row->Id();
+            }
+        }
+        $this->search_status = Relation::SEARCH_STATUS_NOTFOUND;
+        return -1;
+    }
+
+    //Пред-условия:
+    //Пост-условия:
+
+    public function search_pk(array $fk_columns): int
+    {
+        $fk_row = new Row(-1);
+        foreach ($fk_columns as $fk_column)
+            $fk_row->append($fk_column);
+
+        foreach ($this->rows as $row) {
+            $tmpRow = ($row->sub_row($this->primary_key));
+
+            if ($tmpRow->equals($fk_row))
+                return $row->Id();
+        }
+
+        $this->search_status = Relation::SEARCH_STATUS_NOTFOUND;
+        return -1;
+    }
+
+    //Пред-условия:
+    //Пост-условия:
+
+    public function get_insert_status(): int
+    {
+        return $this->insert_status;
+    }
+
+    //Пред-условия:
+    //Пост-условия: возвращает код insert метода
+
+    public function get_search_status(): int
+    {
+        return $this->search_status;
+    }
+
+
+
+    //Пред-условия:
+    //Пост-условия:
+
+    public function get_primary_key(): array
+    {
+        return $this->primary_key;
+    }
+
+    public function set_primary_key(array $primary_key)
+    {
+        $this->primary_key = $primary_key;
+    }
+
+    public function set_unique_key(array $unique_key)
+    {
+        $this->unique_key = $unique_key;
+    }
+
+    public function union(Relation $anotherRelation)
+    {
+        $result_relation = new Relation($this->title, $this->schema);
+        foreach ($this->rows as $row) {
+            $row->set_id($result_relation->size() + 1);
+            $result_relation->insert($row);
+        }
+
+
+        foreach ($anotherRelation->rows as $row) {
+            $row->set_id($result_relation->size() + 1);
+            $result_relation->insert($row);
+        }
+
+        return $result_relation;
+    }
+
+    public function erase(int $byValue, int $at)
+    {
+        foreach ($this->rows as $id => $row)
+        {
+            if($row->at($at)->getValue() == $byValue)
+                unset($this->rows[$id]);
+        }
+
+    }
+
+    public function size(): int
+    {
+        return count($this->rows);
+    }
+
+    /**
+     * @throws InvalidRowSchemaCountException
+     */
+    public function insert(Row $row)
+    {
+        if (count($this->schema) != $row->size() ||
+            $this->contains($row) == true
+            ) {
+            $this->insert_status = Relation::INSERT_STATUS_DUPLICATE;
+        } else {
+            //$this->check_row_schema($row);
+            $this->rows[] = $row;
+            $this->insert_status = Relation::INSERT_STATUS_OK;
+        }
+    }
+
+    private function contains(Row $anotherRow)
+    {
+        $tmpAnotherSubRow = $anotherRow->sub_row($this->unique_key);
+        foreach ($this->rows as $row) {
+            /* @var $row Row */
+            $tmpSubRow = $row->sub_row($this->unique_key);
+            if ($row->equals($anotherRow) || (count($this->unique_key) > 0 && $tmpSubRow->equals($tmpAnotherSubRow))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public function search_row_by_index(int $index, array $primary_key): Row
+    {
+        foreach ($this->rows as $row) {
+            if ($row->Id() == $index) {
+                if($primary_key == [])
+                    return $row;
+                $resultRow = new Row($row->Id());
+                return $row->sub_row($primary_key);
+            }
+        }
+        return new Row(-1);
+    }
+
+    public function array_for_export(bool $with_id)
+    {
+        $export_array = array();
+        foreach ($this->rows as $row) {
+            $export_array[] = $row->to_array($with_id);
+        }
+        return $export_array;
+    }
+
+    public function row(int $id)
+    {
+        return $this->rows[$id-1];
+    }
+
+    public function title(): string
+    {
+        return $this->title;
+    }
+
+    private function check_row_schema(Row $row)
+    {
+        if (count($this->schema) != $row->size())
+            throw new InvalidRowSchemaCountException("Количество значений в строке не совпадает со схемой отношения!");
+
+        if (!$row->fist_the_schema($this->schema))
+            throw new InvalidRowSchemaException("Схема строки не совпадает со схемой отношения!");
+    }
+
+    private function createIterator(): RelationIterator
+    {
+        return new class($this->rows) implements RelationIterator
+        {
+            private $data;
+            private int $currentIndex;
+
+            public function __construct(&$dataToIterate)
+            {
+                $this->data = $dataToIterate;
+                if(count($this->data) == 0)
+                    $this->currentIndex = $this->end();
+                $this->currentIndex = 0;
+            }
+
+            public function begin()
+            {
+                // TODO: Implement begin() method.
+                if(count($this->data) == 0)
+                    return $this->end();
+                $this->currentIndex = 0;
+                return $this->data[$this->currentIndex];
+            }
+
+            public function next()
+            {
+                if(count($this->data) == $this->currentIndex+1)
+                    return $this->end();
+                return $this->data[++$this->currentIndex];
+            }
+
+            public function end()
+            {
+                return -1;
+            }
+        };
+    }
+
+}
+
+```
