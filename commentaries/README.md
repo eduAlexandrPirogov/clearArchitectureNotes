@@ -1,1 +1,170 @@
+# Антипаттерн "Самодокументирующийся код"
 
+Рассмотрим следующий класс:
+
+```php
+class Relation
+{
+
+    public const INSERT_STATUS_NIL = -1;
+    public const INSERT_STATUS_OK = 0;
+    public const INSERT_STATUS_ERR = 1;
+    public const INSERT_STATUS_DUPLICATE = 2;
+
+    public const SEARCH_STATUS_NIL = -1;
+    public const SEARCH_STATUS_OK = 0;
+    public const SEARCH_STATUS_NOTFOUND = 1;
+
+    private string $title;
+
+    private array $rows; //class rows
+    private array $primary_key;
+    private array $unique_key;
+    private array $schema;
+
+    private int $insert_status;
+    private int $search_status;
+
+    public function __construct(string $title, array $schema)
+    {
+          //...
+
+    }
+
+
+
+    public function search(int $index, string $needle) : int
+    {
+         //...
+    }
+
+    public function search_pk(array $fk_columns): int
+    {
+         //...
+    }
+
+
+    public function union(Relation $anotherRelation) : Relation
+    {
+        //...
+    }
+
+    public function erase(int $byValue, int $at)
+    {
+        //...
+    }
+
+    public function size(): int
+    {
+        return count($this->rows);
+    }
+
+    public function insert(Row $row) : void
+    {
+          //...
+    }
+
+    private function contains(Row $anotherRow) : boolean
+    {
+          //...
+    }
+
+    public function search_row_by_index(int $index, array $primary_key): Row
+    {
+          //...
+    }
+
+    public function array_for_export(bool $with_id) : array
+    {
+         //...
+    }
+
+    public function row(int $id)
+    {
+        return $this->rows[$id-1];
+    }
+
+    public function title(): string
+    {
+        return $this->title;
+    }
+
+    private function check_row_schema(Row $row)
+    {
+          //...
+    }
+
+    public function iterator(): RelationIterator
+    {
+        return $this->createIterator();
+    }
+    
+    private function createIterator(): RelationIterator
+    {
+       //...
+    };
+	
+	
+    public function get_insert_status(): int
+    {
+        return $this->insert_status;
+    }
+    
+    public function get_search_status(): int
+    {
+        return $this->search_status;
+    }
+
+    public function get_primary_key(): array
+    {
+        return $this->primary_key;
+    }
+
+    public function set_primary_key(array $primary_key)
+    {
+        $this->primary_key = $primary_key;
+    }
+
+    public function set_unique_key(array $unique_key)
+    {
+        $this->unique_key = $unique_key;
+    }
+    }
+
+}
+```
+
+Что делает данный класс в проекте? Данный класс -- реализации структуры данных "реляционная таблица", подобно реляционной таблице в реляционных СУБД, хранит лишь объекты "Row" (класс, который содержит колонки определенного типа). Данный класс предоставляет возможность производить стандартные операции поиска: по значению в колонки в классе "Row", по набору значений, определить, является ли строка подстройкой; установка первичного ключа, для однозначной идентификации объекта и т.д.
+Данный класс активно используется в проекте, так как позволяет легко создавать массивы "отформатированных" данных в виде реляционных таблиц.
+
+Попробуем взглянуть на данный код без комментариев со стороны "самодокументирующийся код":
+
+```php
+    public function insert(Row $row)
+    {
+        if (count($this->schema) != $row->size() ||
+            $this->contains($row) == true
+            ) {
+            $this->insert_status = Relation::INSERT_STATUS_DUPLICATE;
+        } else {
+            //$this->check_row_schema($row);
+            $this->rows[] = $row;
+            $this->insert_status = Relation::INSERT_STATUS_OK;
+        }
+    }
+
+    private function contains(Row $anotherRow)
+    {
+        $tmpAnotherSubRow = $anotherRow->sub_row($this->unique_key);
+        foreach ($this->rows as $row) {
+            /* @var $row Row */
+            $tmpSubRow = $row->sub_row($this->unique_key);
+            if ($row->equals($anotherRow) || (count($this->unique_key) > 0 && $tmpSubRow->equals($tmpAnotherSubRow))) {
+                return true;
+            }
+        }
+        return false;
+    }
+```
+
+Смотря на метод `insert` видно, что в случае, если строка уже содержится, то она не будет добавлена в АСД "Relation". Но по каким критериям проверяется, что строка уже содержится в АСД "Relation"? По хэш-коду или по содержиому строки? Иначе говоря, **какому критерию должен удовлетворять объект класса "Row", чтобы соответствовать другому объекту класса "Row"**?
