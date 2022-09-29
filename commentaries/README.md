@@ -27,17 +27,6 @@ class Relation
     private array $unique_key;
     private array $schema;
 
-    private int $insert_status;
-    private int $search_status;
-
-    public function __construct(string $title, array $schema)
-    {
-          //...
-
-    }
-
-
-
     public function search(int $index, string $needle) : int
     {
          //...
@@ -108,33 +97,6 @@ class Relation
     {
        //...
     };
-	
-	
-    public function get_insert_status(): int
-    {
-        return $this->insert_status;
-    }
-    
-    public function get_search_status(): int
-    {
-        return $this->search_status;
-    }
-
-    public function get_primary_key(): array
-    {
-        return $this->primary_key;
-    }
-
-    public function set_primary_key(array $primary_key)
-    {
-        $this->primary_key = $primary_key;
-    }
-
-    public function set_unique_key(array $unique_key)
-    {
-        $this->unique_key = $unique_key;
-    }
-    }
 
 }
 ```
