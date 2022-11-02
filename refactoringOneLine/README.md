@@ -16,7 +16,7 @@ public function search(Row $currentRow, array $subRow)
 }
 ```
 
-Стало
+## Стало
 ```php
 public function search(Row $currentRow, array $subRowKeys)
 {
@@ -32,7 +32,7 @@ public function search(Row $currentRow, array $subRowKeys)
   }
 }
 ```
-
+===================================
 # Пример 2
 ## Было
 ```php
@@ -40,7 +40,7 @@ public function search(Row $currentRow, array $subRowKeys)
 $this->listViewResult = $entity->entityList()->get()->first()->compare($toCompare);
 ```
 
-Стало
+## Стало
 ```php
 //Убираем метод гет, добавляем срауз доступ к первому элементу, а-ля очередь
 $firstEntity = $entity->entityList()->first();
@@ -48,6 +48,7 @@ $areEntitiesEqulas = $firstEntity->compare($toCompare);
 ```
 
 
+===================================
 # Пример 3
 ## Было
 //вызов методов внутри параметров других методов
@@ -55,7 +56,7 @@ $areEntitiesEqulas = $firstEntity->compare($toCompare);
 $isKeyExists = key_exists('type', $this->helper->getColumns($this->helper->getGroupType));
 ```
 
-Стало
+## Стало
 //Вынос в отдельные переменные
 ```php
 $columnToPick = $this->helper->getGroupType;
@@ -64,6 +65,7 @@ $isKeyExists = key_exists('type', $arrayWithKeys);
 ```
 
 
+===================================
 # Пример 4
 ## Было
 //вызов методов внутри параметров других методов
@@ -71,7 +73,7 @@ $isKeyExists = key_exists('type', $arrayWithKeys);
 $this->addTableTotalFinancialValues($this->helper->getCompaniesFinancials(), $this->helper->getCorrectedCompaniesFinancials());
 ```
 
-Стало
+## Стало
 //Вынос в отдельные переменные
 ```php
 $correctedCompaniesFinancials = $this->helper->getCorrectedCompaniesFinancials();
@@ -80,6 +82,7 @@ $this->addTableTotalFinancialValues($companyFinancials, $correctedCompaniesFinan
 ```
 
 
+===================================
 # Пример 5
 ## Было
 ```php
@@ -87,7 +90,7 @@ $this->addTableTotalFinancialValues($companyFinancials, $correctedCompaniesFinan
 return $this->references_table->search_row_by_index($fk->getId(), $this->referenced_table->get_primary_key());
 ```
 
-Стало
+## Стало
 ```php
 //Вынос методо в переменные 
 $fkId = $fk->getId();
@@ -97,6 +100,7 @@ return $this->references_table->search_row_by_index($fkId, $primaryKeyOfTable);
 ```
 
 
+===================================
 # Пример 6
 ## Было
 ```php
@@ -104,7 +108,7 @@ return $this->references_table->search_row_by_index($fkId, $primaryKeyOfTable);
 if($parentRow->at($parentRow->size()-1)->getValue() > $row->at($row->size()-1)->getValue())
 ```
 
-Стало
+## Стало
 //Добавим "Итератор" и вынос в отдельные переменные
 ```php
 $lastColumnOfParentRow = $parentRow->last();
