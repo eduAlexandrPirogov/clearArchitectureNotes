@@ -207,24 +207,108 @@ public:
 Класс Arguments будет валидировать аргументы внутрит себя, и если данные аргументы не верны -- то выдается ошибка.
 
 4)
+Тут идет проверка низком уровне. На высоком уровне мы передаем функции строку, но внутри идет проверка...при каких значених будет корректно переданная строка, а при каких нет
 
 Было:
-```cpp
+```php
+public function defineType(string $type)
+{
+   if(trim($type) == 'план)
+      return Months::TYPE_PLAN;
+   if(trim($type) == 'факт')
+      return Months::TYPE_FACT
+   ...
+   
+   return MonthType::Nothing
+   //throw new exception...
+}
 
+public function readMonth(array $data)
+{
+    foreach(...)
+    {
+    ....
+       if($type == $this->defineType($data[0][$column])
+          throw new Exception...
+    }
+}
 ```
 
 Стало:
-```cpp
-```
+```php
+$MonthTypes = [
+   'план' => Months::TYPE_PLAN,
+   'факт' => Months::TYPE_FACT,
+   ...
+]
 
+//удаляем функцию defineType
+
+public function readMonth(array $data)
+{
+    foreach(...)
+    {
+    ....
+       if(!array_key_exists($data[0][$column], $MonthTypes)
+          throw new Exception...
+    }
+}
+```
+Избавились от 6 if-ов просто сузив до минимума домен для функции  defineType, но потом, как выяснилось, от этой функции в целом омж
 
 5)
 
 Было:
-```cpp
+```php
+class DataSaver
+{
+
+  //...
+   
+   //Какой $delimeter будет валидным а какой нет? Аналогично с другими параметрами
+   public function saveDataCsv($delimeter, $escape_character, $enclosure)
+   {
+      //Настройка файла и запись
+   };
+  
+}
 ```
 
 Стало:
-```cpp
+```php
+enum Delimeters
+{
+   case COMMA;
+   case COLON;
+   case SEMICOLON;
+   
+}
+
+enum EscapeCharacters
+{
+   case BACKSLAH;
+   case ...
+}
+
+class DataSaver
+{
+   public const $delimeters = [
+       Delimeters::COMMA => ',',
+       Delimeters::COLON => ';',
+       Delimeters::SEMICOLON => ':'
+   ];
+   
+    public const $escapeCharacters = [
+       EscapeCharacters::BACKSLAH => ',',
+       ...
+   ];
+  //...
+   
+   public function saveDataCsv(Delimeters $delimeter, $escape_character, $enclosure)
+   {
+      //Настройка файла и запись
+   };
+  
+}
 ```
  
