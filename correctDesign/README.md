@@ -1,4 +1,4 @@
-# Коструируем корректный дизайн
+# Конструируем корректный дизайн
 
 Убрать проверку "на дурака" можно различными способами. Прежде чем подойти к ним, нужно понять, почему нам вообще приходится использовать
 защиту "от дурака".
@@ -69,6 +69,8 @@ std::unique_ptr<Arguments> ArgumentsFactory::createArgumentInstance(CommandsEnum
     return argumentsNewInstances[command];
 };
 ```
+Тем самым мы удалили if-else в методе createArgumentInstance, сократили возможные варианты для корректного вызова метода createArgumentInstance.
+Теперь, мы явно даем понять, какие значение -- корректные, а какие -- нет.
 
 Создание подмножеств посредством перечислений:
 2)
@@ -122,6 +124,9 @@ void setUrl(DROPBOX_API_URLS dropboxUrl)
 auto dropboxUrl = dropboxUrls->find(DROPBOX_API_URLS::DOWNLOAD_FILE); //Any of AVAIBLE Url
 setUrl(dropboxUrl);
 ```
+Мы выделили контейнер для хранения URL-ок в отдельных АТД класс, обезопасили себя от некорректного вода URL, и URl-ки находятся в едином месте и не 
+размазаны по проекту.
+К тому же, если мы явно хотим устновить URL, то программисту-клиенту будет доступен метод, параметр которого -- множество DROPBOX URL-ок.
 
 3)
 Было:
@@ -211,53 +216,65 @@ public:
 
 Было:
 ```php
-public function defineType(string $type)
+//Клиент-программист не знает, какую таблицу можно подставить, какую дату в каком формате, какое число будет валидным сервисом, а какое -- нет
+public function getThreeMonthsFarFromInputDtae(string $table, string $from_date, int $service_id, array $monthsAgo)
 {
-   if(trim($type) == 'план)
-      return Months::TYPE_PLAN;
-   if(trim($type) == 'факт')
-      return Months::TYPE_FACT
-   ...
-   
-   return MonthType::Nothing
-   //throw new exception...
-}
-
-public function readMonth(array $data)
-{
-    foreach(...)
-    {
-    ....
-       if($type == $this->defineType($data[0][$column])
-          throw new Exception...
-    }
+    $rows = DB::table($table)->select(...)
+                    ->where('service_id', '=', $service_id)
+                    ->where('date', '>=', date('Y-m-01', strtotime("-$monthsAgo[0] month, strtotime(date('Y-m', strtotime($from_date))))))
+                    ...
+    $this->calculateForecast($rows);
 }
 ```
 
-Стало:
 ```php
-$MonthTypes = [
-   'план' => Months::TYPE_PLAN,
-   'факт' => Months::TYPE_FACT,
-   ...
-]
-
-//удаляем функцию defineType
-
-public function readMonth(array $data)
+//Делаем wrapper над примитивным типом
+class Date
 {
-    foreach(...)
+    public function __construct__(string $date)
     {
-    ....
-       if(!array_key_exists($data[0][$column], $MonthTypes)
-          throw new Exception...
+        //валидируем и устаналиваем значение date корректного формата
     }
+    
+    //...
+}
+
+//Создаем словарь для таблиц, которые можно использовать
+
+enum TablesForForecast
+{
+   case TABLE1;
+   case ...
+}
+
+
+//Field for class
+public const TABLES_FOR_FORECAST = [
+       Delimeters::TABLE1 => 'table1',
+       //...
+   ];
+
+
+public function getThreeMonthsFarFromInputDate(self::TABLES_FOR_FORECAST $table, Date $from_date, Service $service_id, array $monthsAgo)
+{
+    $rows = DB::table($table->toString())->select(...)
+                    ->where('service_id', '=', $service_id->id())
+                    ->where('date', '>=', date('Y-m-01', strtotime("-$monthsAgo[0] month, strtotime(date('Y-m', strtotime($from_date->toString()))))))
+                    ...
+    $this->calculateForecast($rows);
 }
 ```
-Избавились от 6 if-ов просто сузив до минимума домен для функции  defineType, но потом, как выяснилось, от этой функции в целом омж
+В данном случае были три проблемы-параметра метода getThreeMonthsFarFromInputDate:
+1. string $table -- пользователь программист мог подставить любое строкровое значение
+2. string $from_date -- тут не указан явно формат, что могло привести к проблемам
+3. int $service_id -- отрицательные значения, значения, под которыми сервис не существует.
+
+Что было сделано?
+1. string $table -> перенесли в свойства класса, где расположен метод getThreeMonthsFarFromInputDate, задали только доступные имена таблиц для вызова метода.
+2. string $from_date -> вынесли в отдельный класс, который внутри себя обрабатывает, валидирует и устанавливает нужный формат входящей строки, тем самым перенесли все проверки из метод в отдельный класс.
+3. int $service_id -> сделали параметром модели, т.к. модель будет создана на основе данных в БД, тут мы убираем возможность ошибиться за счет имеющихся инструментов фреймворка.
 
 5)
-
 Было:
 ```php
 class DataSaver
@@ -292,19 +309,19 @@ enum EscapeCharacters
 
 class DataSaver
 {
-   public const $delimeters = [
+   public const DELIMETERS = [
        Delimeters::COMMA => ',',
        Delimeters::COLON => ';',
        Delimeters::SEMICOLON => ':'
    ];
    
-    public const $escapeCharacters = [
+    public const ESCAPECHARACTERS = [
        EscapeCharacters::BACKSLAH => ',',
        ...
    ];
   //...
    
-   public function saveDataCsv(Delimeters $delimeter, $escape_character, $enclosure)
+   public function saveDataCsv(self::DELIMETERS $delimeter, sefl::ESCAPECHARACTERS $escape_character, $enclosure)
    {
       //Настройка файла и запись
    };
@@ -312,3 +329,5 @@ class DataSaver
 }
 ```
  
+В первом варианте, в  методе saveDataCsv мы могли поставить любой $delimeter, $escapre_character, тем самым пришлось бы валидировать данные внутри метода.
+Вынеся параметры в перечисления, мы явно даем понять, какое множество значений допускается для метода saveDataCsv.
