@@ -214,12 +214,77 @@ foreach($rows as $row)
 ```php
 class DateColumn extends Column
 {
+
+   public function __construct__($data)
+   {
+      //Внутри мы валидируем данные
+      validate($data);
+   }
    
+   public function value()
+   {
+      return $this->value;
+   }
+}
+```
+   
+2) Теперь строки содержат контейнер подобных Column.
+3) Также класс Relation содержит схему, которую могут принимать строки. Теперь нельзя добавлять строки в отношение, которые имеют различную схему.
+   
+```php
+class Relation
+{
+   public function __construct__($name, array $schema)
+   {
+      $schema = [DateColumn::class, IntColumn::class, ...]
+   }
+}
+```
+   
+4) Также был добавлен классы ForeignKeyColumn и ForeignKeySearch, которые отвечали за поиск id, для ссылки на другую таблицу.
+   
+```php
+class ForeignKeyColumn extends Column
+{
+      
+}
+   
+class ForeignKeySearch
+{
+    public function __construct__(Relation $relatedTable, $rowToRelate)
+    {
+      //...
+    }
+   
+     public function createForeignKey()
+     {
+        $this->search($this->relatedTable, $this->rowToRelate);
+        if($this->search_status == self::SEARCH_STATUS_OK)
+            return $this->currentFk;
+        //..
+     }
+}
+```
+   
+И теперь создание таблицы выглядит следующим образом:
+
+```php
+$relation = new Relation("table_name", [IntColumn::class, DateColumn::class];
+foreach($csv_data as $data)
+{
+    $row = new Row([new IntColumn($data[0], new DateColumn($data[1]),..);
+    $relation->append($row);
 }
 ```
 
-
-
+Получилось следующее:
+1. Иерархия классов Column -- на вход подается значение, которое валидируется внутри класса. Таким образом нигде в системе, кроме как в модуле Columns не валидируются данные.
+2. Для ForeignKey созданы два класса, которые инкапсулируют логику поиска ForeignKey. Таким образом, в системе нигде не происходит поиск строки, на которую стоит ссылаться, кроме как в ForeignKey и ForeignKeySearch классах.
+3. Класс Row, как и класс Relation имеют схемы -- массив, состоящий из классов-Columns для валидации вставки строк одной схемы. Таким образом мы сузили круг, при которых программа может сработать корректно при некорректных данных.
+4. Класс Row принимает на вход теперь конкретные данные. Явно указываем варианты, при которых класс будет работать.
+   
+Границы классов:
+На вход подается csv-файл, который преобразуется в массив со значениями. Мы создали для работы с данными граничными значенияси иерархию классов Column, который будет работать с соответствующим форматом данных. При этом легко добавлять подобные классы и валидировать. Код валидации данных более не размазан по программной системе.
 
 ------------------------------
 3) Переделать 
