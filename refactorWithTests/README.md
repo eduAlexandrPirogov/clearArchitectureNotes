@@ -1,5 +1,3 @@
-#
-
 1) Схема приложеня для загрузки и скачивания файла с dropbox с помощью API:
 Было:
 1. Поступала команда в виде const* char[], int argc (границы нельзя изменить).
@@ -14,6 +12,7 @@
 class ParserCLI
 {
    public:
+    //Границы для работы с парсером
     ParserCLI(char* argv[], int argc);
     bool parse();
     const std::string retrieveCommand();
@@ -21,22 +20,24 @@ class ParserCLI
 }
 ```
 
-2. Пропарсив командную строку, команда и аргументы отправлялись в класс ArgumentsFactory, для валидации корректности аргументов: 
+2. Пропарсив командную строку, команда и аргументы отправлялись в класс ArgumentsFactory, для валидации корректности аргументов. Обозначаем границы через интерфейс класса (метод createArgumentsInstance)
 ```cpp
 class FactoryArguments
 {
     public:
     //...
     
-    // Подаются распаршенные команда и аргументы
+   //Аргументы создаются только через команды и набор аргументов. Остальные конструктора удалены
     std::unique_ptr<Arguments> createArgumentsInstance(const std::string& command, const std::vector<std::string&> args);
 };
 ```
 
 3. Полученный инстанс класса Arguments используется при создании класса Commands:
 ```cpp
+//Границы работы метода -- мы всегда получаем список команды в виде КОМАНДА АРГУМЕНТ_КОМАНДЫ_1 АРГУМЕНТ_КОМАНДЫ_2...
 std::unique_ptr<Command> CommandsBuilder::build(const std::string& command, const std::vector<std::string>& args)
 {
+    //Аргументы создаются только через команды и набор аргументов. Остальные конструктора удалены
     std::unique_ptr<CommandParserWithoutConfig> commandParser = std::make_unique<CommandParserWithoutConfig>(command, argc);
     commandParser->parse();
     
@@ -83,6 +84,7 @@ class PathRule : public Rule
          * Pre-conditions: given name of existing file
          * Post-conditions: instance of PathRule created
         */
+        //Пути указываются в виде строки
         PathRule(const std::string& localPath);
 
         /**
@@ -93,6 +95,26 @@ class PathRule : public Rule
 
         const char* errorMessage();
 };
+
+class GetCommandArguments : public Arguments
+{   
+        PATHRULESTATUSES parseStatus;
+        std::unique_ptr<PathRule> pathRule;
+    public:
+        GetCommandArguments() = delete;
+        //Удаляем остальные конструкты
+        
+        //Обозначаем явные границы для начала работы с классом
+        GetCommandArguments(const std::vector<std::string>& givenArgs);
+
+        bool validate();
+        inline PATHRULESTATUSES status() 
+        {
+            return parseStatus;
+        }
+
+        virtual const char* errorMessage();
+};
 ```
 
 5. Перед исполнением команды, если аргументы не проходят валидацию, программа завершается и выдает ошибку:
@@ -100,7 +122,6 @@ class PathRule : public Rule
 ```cpp
 void PutCommand::execute(RequestHandler* handler)
 {
-
     validateArgs();
     handler->handleRequest(this);
 };
@@ -122,11 +143,15 @@ void PutCommand::validateArgs()
 
 Таким образом:
 1. Мы дефакторизовали реализацию на следующие "ответственности": пропарсить командную строку, создать аргументы, создать команду, провалидировать команду.
-2. Класс ParserCLI -- парсит командную строку
-3. Класс FactoryArguments создает объекты типа Agruments, НЕ взаимодействуя с терминальным вводом
-4. Класс CommandBuilder -- создает класс Arguments и такж не взаимодействует с аргументами терминального ввода 
-5. Класс Rules -- инкапсулирует валидацию аргументов.
-6. Класс Commands -- инкапсулирует воедино Arguments и соответствующие Rules.
+2. Класс ParserCLI -- парсит командную строку. Для работы с классом нужны char* argv[]. Далее никакой класс не работает с char* argv[], int argc.
+4. Класс FactoryArguments создает объекты типа Agruments, НЕ взаимодействуя с терминальным вводом. Для работы с классом нужны string Command и vector<string> args.
+5. Класс CommandBuilder -- создает класс Arguments и такж не взаимодействует с аргументами терминального ввода. Для работы с классом нужны string Command и vector<string> args (поскольку он передает их в ArgumentsFactory).
+6. Класс Rules -- инкапсулирует валидацию аргументов. 
+7. Класс Commands -- инкапсулирует воедино Arguments и соответствующие Rules.
+   
+Таким образом мы:
+1. Избавили классы от работы с char* argv, возможности ошибок из-за неправильного индекса.
+2. Каждый класс работает изолированно. Можно построить систему, фактически построив последовательную цепочку использования классов.
 
 При корректном вызове программы, получается следующая схема:
 1. На вход подается const char* argv[], int argc
@@ -137,7 +162,61 @@ void PutCommand::validateArgs()
 
 
 ------------------------------
-2) Переделать взаимодействие с 
+2) Рефакторинг парсинга csv-файла и преобразование данных в csv в сиды для реляционной СУБД.
+   
+
+Последовательность действий такая:
+1. Пропарсить файл (пропустим момент)
+2. Закинуть данные в структуру данных "множество".
+3. Провалидировать данные (чтобы дата была одного формата)
+4. Установить связи между множествами (аналог foreignKey)
+   
+Изначально было сделано следующим образом:
+
+```php
+$relation = new Relation('table_name');
+foreach($dataArray as $data)
+{
+   $row = new Row($data[0], $data[1]...);//Валидируем внутри данные с помощью методов validateDate($data), validateNumeric($data)...
+   $relation->append($row);
+}
+```
+
+И если понадобится сделать foreign key на другую таблицу, то:
+   
+```php
+$relation = currentRelation();
+$related = tableToRelate();
+$rows = $relation->getRows();
+foreach($rows as $row)
+{
+    //Ищем по совпадению данных
+    $fkindex = $related->search($row);
+    if($fkindex != -1)
+        $row->pushFront($fkindex);
+};
+```
+   
+Рефакторинг.
+Еще раз отметим алгорит:
+   
+Последовательность действий такая:
+1. Закинуть данные в структуру данных "множество".
+2. Провалидировать данные (чтобы дата была одного формата)
+3. Установить связи между множествами (аналог foreignKey)
+   
+Первый шаг довольно простой, АСД принимает на вход строки, которая содержит значения.
+Что было изменено:
+   
+1) Создана иерархия классов Column: DateColumn, IntColumn, StringColumn ..etc, которая на вход принимала данные и валидировала внутри себя
+
+Например, DateColumn:
+```php
+class DateColumn extends Column
+{
+   
+}
+```
 
 
 
